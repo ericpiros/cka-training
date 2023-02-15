@@ -1,0 +1,6 @@
+FROM kroniak/ssh-client
+COPY binaries/* /usr/local/bin/
+RUN mkdir -p /home/cka_user
+WORKDIR /home/cka_user
+
+CMD ["/bin/bash"]
