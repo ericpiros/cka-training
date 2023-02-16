@@ -1,5 +1,6 @@
-FROM kroniak/ssh-client
+FROM ubuntu:latest
 COPY binaries/* /usr/local/bin/
+RUN apt update && apt install -y openssh-client neovim
 RUN mkdir -p /home/cka_user
 WORKDIR /home/cka_user
 

@@ -6,3 +6,8 @@
 
 # 02-15-2023
 * Added dockerfile that will create a client container with the required tools to proceed with the training.
+
+# 02-17-2023
+* Modified client docker image to use Ubuntu image.
+* Created client-start script to start up my cka container and mount a local home folder.
+* Downloaded the correct cfssl binary.

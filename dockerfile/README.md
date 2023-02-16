@@ -3,8 +3,9 @@ This contains the docker file that will create an image that has the following i
 * cfssl
 * cfssljson
 * kubectl
-The image is currently based on the [kroniak/ssh-client](https://hub.docker.com/r/kroniak/ssh-client/) image. This itself is based on Alpine linux 3.15 with the openssh-client and bash installed.
+The image is currently based on the [Ubuntu 22.04](https://hub.docker.com/_/ubuntu) image. Additional software installed are:  
+* openssl-client
+* neovim
 
-# Why use a prebuilt image?
-As much as I would like to create my own client from scratch and base it on Ubuntu (to make all my client and server be the same version), I quickly learned that installing the ssh-client on the [official Ubuntu image](https://hub.docker.com/_/ubuntu) is not as straight forward as I first thought. I am getting errors when running apt-get update and I do not have time to troubleshoot this at this point.  
-I will probably revisit this in the future when I get more time.
+# Issues encountered
+I had network connectivity issues if my containers use the default bridge network. I later find out that this is due to me using the snap version of docker. Several post say that this can be resolved by adding an iptables entry to allow the docker user through the network, but I opted instead to replace the snap version with the docker.io deb package instead.
