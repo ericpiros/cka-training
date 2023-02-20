@@ -10,4 +10,8 @@
 # 02-17-2023
 * Modified client docker image to use Ubuntu image.
 * Created client-start script to start up my cka container and mount a local home folder.
-* Downloaded the correct cfssl binary.
+* Downloaded the correct cfssl binary.  
+
+# 02-20-2023
+* Modified client-start.sh to set the home directory and image name as variables. Also added comments to the script to explain what can be changed.  
+* Added 'How to build' and 'How to run' sections in the README.md for the DOCKERFILE.
