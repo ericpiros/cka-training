@@ -1,0 +1,33 @@
+BOX_IMAGE = "ubuntu/jammy64"
+CLIENT_HOSTNAME = "kthwclient"
+
+Vagrant.configure("2") do |kthw_client|
+  kthw_client.vm.define "client" do |kube_client|
+    kube_client.vm.box = BOX_IMAGE
+    kube_client.vm.hostname = CLIENT_HOSTNAME
+    kube_client.vm.synced_folder ".", "/vagrant", disabled: true
+    kube_client.vm.synced_folder "kthw/", "/home/vagrant/kthw/", create: true
+
+    kube_client.vm.provider "virtualbox" do |client_config|
+      client_config.memory = 4096
+      client_config.cpus = 2
+      client_config.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+    end
+  end
+
+  kthw_client.vm.provision "shell", inline: <<-SHELL
+    sudo apt update
+    wget -q --https-only --timestamping \
+      https://pkg.cfssl.org/R1.2/cfssl_linux-amd64 \
+      https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64
+    chmod +x cfssl_linux-amd64 cfssljson_linux-amd64
+    sudo mv cfssl_linux-amd64 /usr/local/bin/cfssl
+    sudo mv cfssljson_linux-amd64 /usr/local/bin/cfssljson
+    cfssl version
+    wget https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kubectl
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+    kubectl version --client
+    sudo apt install -y openssh-client
+  SHELL
+end
