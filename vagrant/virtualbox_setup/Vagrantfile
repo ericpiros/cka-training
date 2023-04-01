@@ -29,7 +29,5 @@ Vagrant.configure("2") do |kube|
   kube.vm.provision "shell", inline: <<-SHELL
     sudo apt update
     sudo apt install -y avahi-daemon libnss-mdns apt-transport-https ca-certificates curl
-    sudo curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
   SHELL
 end
