@@ -8,6 +8,7 @@ Note that these servers will be bare installations and will serve as the base to
 
 # Diagram  
 Each server will have 2 network interface cards. The first one is the default NAT network card that VirtualBox assigns. All the servers will have the same IP address for this interface (10.0.2.15/24) This will be the interface where all internet bound communication will go through.  
+
 Each server will have a secondary network card assigned to a local VirtualBox network. The default local network has the CIDR block 192.168.56.0/24 assigned to it. This is where our inter-cluster communication will take place. As such be aware that during 'kubeadm init', you will need to use the '--apiserver-advertise-address' parameter along with the IP address of your Master node to ensure that Kubernetes does not look for traffic in the NAT interface.  
 ![VBox Diagram](diagram/VBox_Setup.jpg)
 
