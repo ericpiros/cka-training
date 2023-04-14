@@ -2,6 +2,7 @@
 #
 echo "Turning off swap"
 sudo swapoff -a
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 
 echo "Enabling overlay and br_netfilter"
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
