@@ -2,7 +2,7 @@
 One of the curriculum topics included in the exam is to install a basic cluster using kubeadm. Using kubeadm to stand up a cluster is covered [here](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/) and we can follow the instructions outlined there to stand up a basic cluster.  
 
 # Cluster Setup
-We will be setting up a 3 node cluster which will have 1 master node and 2 worker nodes. I have created a [Vagrantfile](../vagrant/virtualbox_setup/Vagrantfilevagrant/virtualbox_setup/Vagrantfile) which will stand up 4 Ubuntu 20.04 VMs. Note that this requires that you have the following installed on your machine:  
+We will be setting up a 3 node cluster which will have 1 master node and 2 worker nodes. I have created a [Vagrantfile](../vagrant/virtualbox_setup/Vagrantfile) which will stand up 4 Ubuntu 20.04 VMs. Note that this requires that you have the following installed on your machine:  
 * [Vagrant](https://developer.hashicorp.com/vagrant/downloads)
 * [VirtualBox](https://www.virtualbox.org/wiki/Downloads)  
 
