@@ -2,14 +2,15 @@
 One of the curriculum topics included in the exam is to install a basic cluster using kubeadm. Using kubeadm to stand up a cluster is covered [here](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/) and we can follow the instructions outlined there to stand up a basic cluster.  
 
 # Cluster Setup
-We will be setting up a 3 node cluster which will have 1 master node and 2 worker nodes. I have created a [Vagrantfile](..vagrant/virtualbox_setup/Vagrantfile) which will stand up 4 Ubuntu 20.04 VMs. Note that this requires that you have the following installed on your machine:  
+We will be setting up a 3 node cluster which will have 1 master node and 2 worker nodes. I have created a [Vagrantfile](../vagrant/virtualbox_setup/Vagrantfilevagrant/virtualbox_setup/Vagrantfile) which will stand up 4 Ubuntu 20.04 VMs. Note that this requires that you have the following installed on your machine:  
 * [Vagrant](https://developer.hashicorp.com/vagrant/downloads)
-* [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+* [VirtualBox](https://www.virtualbox.org/wiki/Downloads)  
+
 Each VM is labeled accordingly:
-* Jumpbox - the jumpbox server we can use to log into the other 3 servers. This is optional since we can directly use 'vagrant ssh' to log into the other servers.
-* Master - the master node where we will install out control plane.
-* Node1/Node2 - the K8S worker nodes.  
-More details on how to use the Vagrantfile can be found in the appropriate [readme}(../vagrant/virtualbox_setup/README.md) file.  
+* **Jumpbox** - the jumpbox server we can use to log into the other 3 servers. This is optional since we can directly use 'vagrant ssh' to log into the other servers.
+* **Master** - the master node where we will install out control plane.
+* **Node1/Node2** - the K8S worker nodes.  
+More details on how to use the Vagrantfile can be found in the appropriate [readme](../vagrant/virtualbox_setup/README.md) file.  
 
 # Cluster Notes
 Before we start with the configuration, take note that in the environment that I am using here, each VM will have 2 network interface cards. The first one is the standard VirtualBox NAT interface, which will have an IP address of 10.0.2.15. The second interface card is the default VirtualBox Local network, which will be in the 192.168.56.0/24 CIDR network.  If you are using the same network CIDR as the VirtualBox local network, you may need to create your own VirtualBox local network and adjust the Vagrantfile setting and kubeadm init commands accordingly.  
@@ -145,3 +146,34 @@ $ sudo systemctl status kubelet
 ```
 
 # Bootstrapping the Control Plane
+This [page](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/) contains instruction on setting up a simple Kubernetes cluster. Technically we only need to run 'kubeadm init' to get started, however there are several kubeadm init [parameters](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/) that are worth configuring for my environment:  
+## kubeadm init parameters
+* **--apiserver-advertise-address** - by default kubeadm will set the API server IP to what is set to the default gateway on your server. This is not ideal for my setup as the default gateway on my VMs points to the VirtualBox NAT network. So I will need to specify the IP address of the Master server (192.168.56.5 on the Vagrantfile) to ensure that it advertises the correct IP address.
+ * **--kubernetes-version** - by default kubeadm will install the latest version of kubernetes. I will set it to the base version of 1.26.0 so that I can practice upgrading it on a later date.
+ * **--pod-network-cidr** - the range of IP addresses for the pod network. Take note of this value as we may need later when we install our CNI plugin.
+```
+# Create the cluster
+$ sudo kubeadm init --apiserver-advertise-address 192.168.56.5 --kubernetes-version 1.26.0 --pod-network-cidr 192.168.0.0/24 -v 5
+```  
+The command above needs to be run on the Master VM.  
+I am setting the verbosity of the output to 5 so that we can track what kubeadm will be doing.
+## Using a Configuration File
+Alternatively you can create a kubeadm init configuration file and pass it to kubeadm init using the '--config' parameter. This feature, as of 4/15/2023, is marked as beta, so it may change on a later date. You can get a template and the various options you can set on this [page](https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta3/). You can also run 'kubeadm config print init-defaults' to quickly create a config file template to edit. You will only need the 'ClusterConfiguration' section to setup a cluster. Converting our parameters above my config file would look like this:
+```
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "192.168.56.5"
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+networking:
+  podSubnet: "10.244.0.0/24"
+kubernetesVersion: "v1.26.0"
+clusterName: "my-k8s-cluster"
+```
+I have saved this [my-k8s-cluster.yaml](../vagrant/virtualbox_setup/my-k8s-cluster.yaml).  To run this I will use:  
+```
+# Create my cluster using a kubeadm config file
+$ sudo kubeadm init --config ./my-k8s-cluster.yaml -v 5
+```  
