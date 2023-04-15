@@ -1,0 +1,28 @@
+BOX_IMAGE = "ubuntu/jammy64"
+CLIENT_HOSTNAME = "advancenetworking"
+
+Vagrant.configure("2") do |client|
+  client.vm.define "client" do |kube_client|
+    kube_client.vm.box = BOX_IMAGE
+    kube_client.vm.hostname = CLIENT_HOSTNAME
+
+    kube_client.vm.provider "virtualbox" do |client_config|
+      client_config.memory = 4096
+      client_config.cpus = 2
+      client_config.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+    end
+  end
+
+  client.vm.provision "shell", inline: <<-SHELL
+    sudo apt update
+    sudo apt -y install docker.io
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    kubectl version
+    curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-linux-amd64
+    chmod +x ./kind
+    sudo mv ./kind /usr/local/bin/kind
+    docker pull acloudgurulabs/course_kubernetes_advanced_networking:latest
+    echo "kubectl run --generator=run-pod/v1 tmp-shell --rm -i --tty --image acloudgurulabs/course_kubernetes_advanced_networking:latest -- /bin/bash" > acgpod.sh
+  SHELL
+end

@@ -15,3 +15,9 @@
 # 02-20-2023
 * Modified client-start.sh to set the home directory and image name as variables. Also added comments to the script to explain what can be changed.  
 * Added 'How to build' and 'How to run' sections in the README.md for the DOCKERFILE.
+
+# 03-09-2023
+* Removed space on variable assignment on the client dockerfile.
+* Downgraded kubectl version to 1.10.2 to match the k8s server version in the ACG Kubernetes The Hard Way course.
+* Re-arranged the contents of the vagrant directory.
+* Added a Vagrant config to spin up an Ubuntu client for the ACG Kubernetes The Hard Way course.
