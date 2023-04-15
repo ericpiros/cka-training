@@ -145,6 +145,16 @@ $ sudo kubeadm --version
 $ sudo systemctl status kubelet
 ```
 
+# Configuring the Worker Nodes
+The commands listed above need to be done on the worker nodes as well. If you wish to speed through the worker node pre-work, I have created a shell script that runs the commands above [here](../vagrant/virtualbox_setup/k8s_req.sh). If you have cloned this repository, the script will be available in the '/vagrant' directory on all VMs.
+```
+# Copy the script to the home folder
+$ sudo cp /vagrant/k8s_req.sh
+$ sudo chmoid +x k8s_req.sh
+$ ./k8s_req.sh
+``` 
+Once you installed and configured the worker nodes, we can start bootstrapping our control plane.  
+
 # Bootstrapping the Control Plane
 This [page](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/) contains instruction on setting up a simple Kubernetes cluster. Technically we only need to run 'kubeadm init' to get started, however there are several kubeadm init [parameters](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/) that are worth configuring for my environment:  
 ## kubeadm init parameters
@@ -168,7 +178,7 @@ localAPIEndpoint:
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: ClusterConfiguration
 networking:
-  podSubnet: "10.244.0.0/24"
+  podSubnet: "192.168.0.0/24"
 kubernetesVersion: "v1.26.0"
 clusterName: "my-k8s-cluster"
 ```
@@ -177,3 +187,44 @@ I have saved this [my-k8s-cluster.yaml](../vagrant/virtualbox_setup/my-k8s-clust
 # Create my cluster using a kubeadm config file
 $ sudo kubeadm init --config ./my-k8s-cluster.yaml -v 5
 ```  
+## Post kubeadm init commands
+After the control plane has initialize, kubeadm gives us some handy suggestions on how to proceed next. First we want to create kube config file so that we can run kubectl on the Master node to be able to check out cluster.
+```
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+```  
+This copies the admin.conf kube config file in the /etc/kubernetes directory into our .kube/config file. With that set we can run a 'kubectl get nodes' to see the status of our nodes in our cluster:
+```
+vagrant@master:~$ mkdir -p $HOME/.kube
+vagrant@master:~$   sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+vagrant@master:~$   sudo chown $(id -u):$(id -g) $HOME/.kube/config
+vagrant@master:~$ kubectl get nodes
+NAME     STATUS     ROLES           AGE     VERSION
+master   NotReady   control-plane   7m49s   v1.26.0
+```  
+As we can see our control plane node is up, but in the NotReady state. This is normal as it will not be in the ready state until we install a network plugin.  
+The kubeadm init command also shows us how to join our nodes to our clusters. So lets do that.
+
+# Joining the Worker Nodes
+We can use the 'kubeadm join' command to join our worker nodes:
+```
+$ sudo kubeadm join 192.168.56.5:6443 --token <token> \
+                --discovery-token-ca-cert-hash \
+                 <discovery ca cert hash>
+```
+Now if incase you decide to add another worker node at a later date, you can view the join command again by typing:
+```
+$ sudo kubeadm token create --print-join-command
+```
+Needless to say, the join commands need to be run on the worker nodes. Once joined we can run 'kubectl get nodes' again to confirm that the worker nodes have joined the cluster successfully.
+```
+vagrant@master:~$ kubectl get nodes
+NAME     STATUS     ROLES           AGE   VERSION
+master   NotReady   control-plane   14m   v1.26.0
+node1    NotReady   <none>          19s   v1.26.0
+node2    NotReady   <none>          23s   v1.26.0
+```  
+Now we can complete the installation by installing a network plugin.  
+
+# Installing a Network Plugin
