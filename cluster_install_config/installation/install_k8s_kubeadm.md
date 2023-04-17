@@ -2,7 +2,7 @@
 One of the curriculum topics included in the exam is to install a basic cluster using kubeadm. Using kubeadm to stand up a cluster is covered [here](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/) and we can follow the instructions outlined there to stand up a basic cluster.  
 
 # Cluster Setup
-We will be setting up a 3 node cluster which will have 1 master node and 2 worker nodes. I have created a [Vagrantfile](../vagrant/virtualbox_setup/Vagrantfile) which will stand up 4 Ubuntu 20.04 VMs. Note that this requires that you have the following installed on your machine:  
+We will be setting up a 3 node cluster which will have 1 master node and 2 worker nodes. I have created a [Vagrantfile](../../vagrant/virtualbox_setup/Vagrantfile) which will stand up 4 Ubuntu 20.04 VMs. Note that this requires that you have the following installed on your machine:  
 * [Vagrant](https://developer.hashicorp.com/vagrant/downloads)
 * [VirtualBox](https://www.virtualbox.org/wiki/Downloads)  
 
@@ -10,7 +10,7 @@ Each VM is labeled accordingly:
 * **Jumpbox** - the jumpbox server we can use to log into the other 3 servers. This is optional since we can directly use 'vagrant ssh' to log into the other servers.
 * **Master** - the master node where we will install out control plane.
 * **Node1/Node2** - the K8S worker nodes.  
-More details on how to use the Vagrantfile can be found in the appropriate [readme](../vagrant/virtualbox_setup/README.md) file.  
+More details on how to use the Vagrantfile can be found in the appropriate [readme](../../vagrant/virtualbox_setup/README.md) file.  
 
 # Cluster Notes
 Before we start with the configuration, take note that in the environment that I am using here, each VM will have 2 network interface cards. The first one is the standard VirtualBox NAT interface, which will have an IP address of 10.0.2.15. The second interface card is the default VirtualBox Local network, which will be in the 192.168.56.0/24 CIDR network.  If you are using the same network CIDR as the VirtualBox local network, you may need to create your own VirtualBox local network and adjust the Vagrantfile setting and kubeadm init commands accordingly.  
@@ -146,7 +146,7 @@ $ sudo systemctl status kubelet
 ```
 
 # Configuring the Worker Nodes
-The commands listed above need to be done on the worker nodes as well. If you wish to speed through the worker node pre-work, I have created a shell script that runs the commands above [here](../vagrant/virtualbox_setup/k8s_req.sh). If you have cloned this repository, the script will be available in the '/vagrant' directory on all VMs.
+The commands listed above need to be done on the worker nodes as well. If you wish to speed through the worker node pre-work, I have created a shell script that runs the commands above [here](../../vagrant/virtualbox_setup/k8s_req.sh). If you have cloned this repository, the script will be available in the '/vagrant' directory on all VMs.
 ```
 # Copy the script to the home folder
 $ sudo cp /vagrant/k8s_req.sh
@@ -160,10 +160,10 @@ This [page](https://kubernetes.io/docs/setup/production-environment/tools/kubead
 ## kubeadm init parameters
 * **--apiserver-advertise-address** - by default kubeadm will set the API server IP to what is set to the default gateway on your server. This is not ideal for my setup as the default gateway on my VMs points to the VirtualBox NAT network. So I will need to specify the IP address of the Master server (192.168.56.5 on the Vagrantfile) to ensure that it advertises the correct IP address.
  * **--kubernetes-version** - by default kubeadm will install the latest version of kubernetes. I will set it to the base version of 1.26.0 so that I can practice upgrading it on a later date.
- * **--pod-network-cidr** - the range of IP addresses for the pod network. Take note of this value as we may need later when we install our CNI plugin.
+ * **--pod-network-cidr** - the range of IP addresses for the pod network. Take note of this value as we may need later when we install our CNI plugin. We will set this to 10.244.0.0/16 since we planning on using flannel as our network plugin.
 ```
 # Create the cluster
-$ sudo kubeadm init --apiserver-advertise-address 192.168.56.5 --kubernetes-version 1.26.0 --pod-network-cidr 192.168.0.0/24 -v 5
+$ sudo kubeadm init --apiserver-advertise-address 192.168.56.5 --kubernetes-version 1.26.0 --pod-network-cidr 10.244.0.0/24 -v 5
 ```  
 The command above needs to be run on the Master VM.  
 I am setting the verbosity of the output to 5 so that we can track what kubeadm will be doing.
@@ -178,11 +178,11 @@ localAPIEndpoint:
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: ClusterConfiguration
 networking:
-  podSubnet: "192.168.0.0/24"
+  podSubnet: "10.244.0.0/24"
 kubernetesVersion: "v1.26.0"
 clusterName: "my-k8s-cluster"
 ```
-I have saved this [my-k8s-cluster.yaml](../vagrant/virtualbox_setup/my-k8s-cluster.yaml).  To run this I will use:  
+I have saved this [my-k8s-cluster.yaml](../../vagrant/virtualbox_setup/my-k8s-cluster.yaml).  To run this I will use:  
 ```
 # Create my cluster using a kubeadm config file
 $ sudo kubeadm init --config ./my-k8s-cluster.yaml -v 5
@@ -228,3 +228,69 @@ node2    NotReady   <none>          23s   v1.26.0
 Now we can complete the installation by installing a network plugin.  
 
 # Installing a Network Plugin
+We will need to install a Container Network Interface (CNI) plugin so that our pods can communicate with each other.  Coredns will also not start up until a CNI plugin is installed:
+```
+# coredns is pending until we install a CNI
+vagrant@jumpbox:~$ kubectl get pods --namespace kube-system | grep coredns
+coredns-787d4945fb-c8ktd         0/1     Pending   0             13h
+coredns-787d4945fb-zxmlq         0/1     Pending   0             13h
+```
+There are several plugins available and a list can be found [here](https://kubernetes.io/docs/concepts/cluster-administration/addons/#networking-and-network-policy). However, if we look at the CKA/CKAD Environment section in the [Handbook](https://docs.linuxfoundation.org/tc-docs/certification/tips-cka-and-ckad), we can see that the exam environment will mostly have [flannel](https://github.com/flannel-io/flannel) and [calico](https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart) as their CNI.  
+Since flannel is installed on more environments, we will go with flannel in this training.  
+## Installing Flannel
+Based on Flannel's github page, this plugin is more focused on the network aspect of the CNI and does not provide network policy capabilites. For that we will need to use calico.  
+To install flannel, we only need to download the latest manifest file and run 'kubectl apply -f < flannel manifest >. One consideration to take is that by default flannel expects the pod CIDR to be 10.244.0.0/16, which we already set.  
+
+Before install flannel, there is 1 more thing we need to consider in our environment. Since our Vagrant boxes have 2 network interfaces, this will cause a problem with flannel. This is because flannel will select the first interface on the host. We will need to specify the --iface=eth1 to the daemonset parameter to avoid any issues.
+```
+# Download flannel manifest
+$ wget https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+
+# Edit kube-flannel.yml again and go to the DaemonSet section
+piVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: flannel
+    k8s-app: flannel
+    tier: node
+  name: kube-flannel-ds
+  namespace: kube-flannel
+spec:
+  selector:
+    matchLabels:
+      app: flannel
+      k8s-app: flannel
+  template:
+    metadata:
+      labels:
+        app: flannel
+        k8s-app: flannel
+        tier: node
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      containers:
+      - args:
+        - --ip-masq
+        - --kube-subnet-mgr
+  -->   - --iface=eth1 <-- Insert this line
+        command:
+        - /opt/bin/flanneld
+
+# Apply the flannel manifest
+$ kubectl apply -f kube-flannel.yml
+
+# Wait for coredns and the flannel pods to come up
+$ kubectl get pods --namespace kube-system -w
+
+# Once all pods are up, lets check the status of our nodes
+$ kubectl get nodes
+```
