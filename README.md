@@ -10,7 +10,7 @@ I am currently going through the [Container](https://learn.acloud.guru/learning-
 As of 2023, the exam covers the [Kubernetes 1.26](https://kubernetes.io/blog/2022/12/09/kubernetes-v1-26-release/) and as such I will be following the [1.26 curriculum](files/CKA_Curriculum_v1.26.pdf).  These incude the following:  
 * 25% - Cluster Architecture, Installation and Configuration  
   * Manage role based access control (RBAC)
-  * Use kubeadm to install a basic cluster
+  * [Use kubeadm to install a basic cluster](./cluster_install_config/installation/install_k8s_kubeadm.md)
   * Manage a highly-available Kubernetest cluster
   * Provision underlying infrastructure to deploy a Kuernetes cluster
   * Perform a version upgrade on a Kubernetes cluster using Kubeadm

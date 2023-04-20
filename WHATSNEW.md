@@ -21,3 +21,7 @@
 * Downgraded kubectl version to 1.10.2 to match the k8s server version in the ACG Kubernetes The Hard Way course.
 * Re-arranged the contents of the vagrant directory.
 * Added a Vagrant config to spin up an Ubuntu client for the ACG Kubernetes The Hard Way course.
+
+# 04-20-2023  
+* Finished initial version of kubeadm install.
+* Finalized Vagrantfile for kubeadm install instructions.
