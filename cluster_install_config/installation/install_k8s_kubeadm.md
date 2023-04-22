@@ -355,4 +355,18 @@ nginx        NodePort    10.108.83.141   <none>        80:31164/TCP <-- take not
 ```  
 Now open a browser and type in the address of our master node with the port shown in the 'kubectl get services' command above. In our example it would be 'http://192.168.56.5:31164'  
 
-[Issues Encountered]()
+# Issues Encountered
+These are some of the things I encountered while learning to install Kubernetes through kubeadm:  
+## PodCIDR setting not set on node  
+The following error will appear in the logs if a node does not have the PodCIDR setting set:
+```
+E0422 15:32:46.190369       1 main.go:334] Error registering network: failed to acquire lease: node "node1" pod cidr not assigned
+```
+I learned that this can happen when you pass a '/24' CIDR to the '--pod-network-cidr' parameter of 'kubeadm init'. This is discussed [here](https://github.com/kubernetes/kubeadm/issues/2327).  
+There are 2 possible fixes for this issue:  
+* Patch the podCIDR setting on the nodes.  
+```
+$ kubectl patch node <node name> -p '{"spec":{"podCIDR":"<pod CIDR value>"}}'
+```
+* Use a /16 CIDR during the 'kubeadm init' phase.  
+Of the 2 solutions, the 2nd one is the preferred solution. If you do decide to keep the /24 CIDR, you will need to issue the 'kubectl patch' on each node that you will add to your cluster.
