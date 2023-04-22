@@ -355,6 +355,7 @@ nginx        NodePort    10.108.83.141   <none>        80:31164/TCP <-- take not
 ```  
 Now open a browser and type in the address of our master node with the port shown in the 'kubectl get services' command above. In our example it would be 'http://192.168.56.5:31164'  
 
+
 # Issues Encountered
 These are some of the things I encountered while learning to install Kubernetes through kubeadm:  
 ## PodCIDR setting not set on node  
