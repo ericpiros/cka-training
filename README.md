@@ -13,7 +13,7 @@ As of 2023, the exam covers the [Kubernetes 1.26](https://kubernetes.io/blog/202
   * [Use kubeadm to install a basic cluster](./cluster_install_config/installation/install_k8s_kubeadm.md)
   * Manage a highly-available Kubernetest cluster
   * Provision underlying infrastructure to deploy a Kuernetes cluster
-  * Perform a version upgrade on a Kubernetes cluster using Kubeadm
+  * [Perform a version upgrade on a Kubernetes cluster using Kubeadm](./cluster_install_config/upgrade/upgrade_k8s_kubeadm.md)
   * Implement etcd backup and restore
 * 15% - Workloads & Scheduling
   * Understand deployments and how to perform rolling update and rollbacks
