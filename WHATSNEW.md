@@ -25,3 +25,6 @@
 # 04-20-2023  
 * Finished initial version of kubeadm install.
 * Finalized Vagrantfile for kubeadm install instructions.
+
+# 04-29-2023
+* Finished initial version kubeadm upgrade.
