@@ -33,7 +33,7 @@ Canceled hold on kubeadm.
 
 # Upgrade kubeadm.
 $ sudo apt upgrade -y kubeadm=1.26.4-00
-```  
+
 # Drain the node to be upgraded
 This will ensure that no new pods get scheduled on the node that we are upgrading and will also remove any pods that are currently on the node. Using the drain command will also cordon it off.  
 ```
@@ -47,8 +47,8 @@ master   Ready,SchedulingDisabled   control-plane   3d14h   v1.26.0
 node1    NotReady                   <none>          3d14h   v1.26.0
 node2    NotReady                   <none>          3d14h   v1.26.0
 ```
-There maybe situations where the drain will fail due to pods using emptyDir, you use the '--delete-emptydir-data' and '--force' to force the deletion of the emptyDir.
 
+There maybe situations where the drain will fail due to pods using emptyDir, you use the '--delete-emptydir-data' and '--force' to force the deletion of the emptyDir.
 
 # Running kubeadm upgrade plan and kubeadm upgrade apply
 Once kubeadm has been upgraded on our control plane server, the next step is to run `kubeadm upgrade plan v< version number >. This will perform several actions:  
