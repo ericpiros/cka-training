@@ -33,6 +33,7 @@ Canceled hold on kubeadm.
 
 # Upgrade kubeadm.
 $ sudo apt upgrade -y kubeadm=1.26.4-00
+```
 
 # Drain the node to be upgraded
 This will ensure that no new pods get scheduled on the node that we are upgrading and will also remove any pods that are currently on the node. Using the drain command will also cordon it off.  
@@ -65,11 +66,11 @@ Once you have confirmed that it is possible to upgrade your cluster, you can the
 ```
 # Start the upgrade process.
 $ sudo kubeadm upgrade apply v1.26.4 -v 5
-[upgrade/config] Making sure the configuration is correct:          
+[upgrade/config] Making sure the configuration is correct:
 [upgrade/config] Reading configuration from the cluster...
 [upgrade/config] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -o yaml'
 [upgrade] Running cluster health checks
-upgrade/version] You have chosen to change the cluster version to "v1.26.4"
+[upgrade/version] You have chosen to change the cluster version to "v1.26.4"
 [upgrade/versions] Cluster version: v1.26.0
 [upgrade/versions] kubeadm version: v1.26.4
 [upgrade] Are you sure you want to proceed? [y/N]: y <-- You will be prompted here.
