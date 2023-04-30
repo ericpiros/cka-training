@@ -32,7 +32,7 @@ $ sudo apt-mark unhold kubeadm
 Canceled hold on kubeadm.
 
 # Upgrade kubeadm.
-$ sudo apt upgrade -y kubeadm=1.26.4
+$ sudo apt upgrade -y kubeadm=1.26.4-00
 ```  
 # Drain the node to be upgraded
 This will ensure that no new pods get scheduled on the node that we are upgrading and will also remove any pods that are currently on the node. Using the drain command will also cordon it off.  
@@ -47,7 +47,7 @@ master   Ready,SchedulingDisabled   control-plane   3d14h   v1.26.0
 node1    NotReady                   <none>          3d14h   v1.26.0
 node2    NotReady                   <none>          3d14h   v1.26.0
 ```
-There maybe situations where the drain will fail due to pods using emptyDir, you use the '--delete-emptydir-data' to force the deletion of the emptyDir.
+There maybe situations where the drain will fail due to pods using emptyDir, you use the '--delete-emptydir-data' and '--force' to force the deletion of the emptyDir.
 
 
 # Running kubeadm upgrade plan and kubeadm upgrade apply
@@ -178,3 +178,66 @@ kubectl set on hold.
 
 # Upgrading Our Worker Nodes
 We will perform the same steps as above with the upgrade on the control plane, the only difference is that we will use 'kubeadm upgrade node' on the node.
+```
+# On the master node.
+$ kubectl drain node1 --ignore-daemonsets --force
+
+# Confirm that node1 has been cordoned.
+$ kubectl get nodes
+NAME     STATUS                        ROLES           AGE     VERSION
+master   Ready                         control-plane   6d15h   v1.26.4
+node1    NotReady,SchedulingDisabled   <none>          6d15h   v1.26.0
+node2    NotReady                      <none>          6d15h   v1.26.0
+
+# On node1.
+$ sudo apt-mark unhold kubeadm
+Canceled hold on kubeadm.
+
+# Upgrade kubeadm on node1.
+$ sudo apt upgrade -y kubeadm=1.26.4-00
+
+# Upgrade the node.
+$ sudo kubeadm upgrade node
+[upgrade] Reading configuration from the cluster...
+[upgrade] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -o yaml'
+[preflight] Running pre-flight checks
+[preflight] Skipping prepull. Not a control plane node.
+[upgrade] Skipping phase. Not a control plane node.
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[upgrade] The configuration for this node was successfully updated!
+[upgrade] Now you should go ahead and upgrade the kubelet package using your package manager.
+
+# Unhold and upgrade kubelet and kubectl.
+$ sudo apt-mark unhold kubelet kubectl
+Canceled hold on kubelet.
+Canceled hold on kubectl.
+
+$ sudo upgrade -y kubelet=1.26.4-00 kubectl=1.26.4-00
+
+# Confirm the versions.
+$ sudo kubelet --version
+
+$ kubectl version
+
+# Hold the kubeadm, kubelet and kubectl pacakages.
+$ sudo apt-mark hold kubeadm kubelet kubectl
+
+# Restart kubelet.
+$ sudo systemctl daemon-reload
+$ sudo systemctl restart kubelet
+
+# Confirm kubelet is running.
+$ sudo systemctl status kubelet
+
+# Back on master node, uncordon node1.
+$ kubectl uncordon node1
+node/node1 uncordoned  
+
+# Confirm that node1 has been upgraded.
+$ kubectl get nodes
+NAME     STATUS   ROLES           AGE     VERSION
+master   Ready    control-plane   6d16h   v1.26.4
+node1    Ready    <none>          6d16h   v1.26.4 <-- Version number upgraded.
+node2    Ready    <none>          6d15h   v1.26.0
+```
+Now we just repeat the same steps on node2.
