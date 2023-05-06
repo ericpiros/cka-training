@@ -1,5 +1,8 @@
 # Backup ETCD
 
+## Useful Info
+This [kodecloud community FAQ](https://github.com/kodekloudhub/community-faq/blob/main/docs/etcd-faq.md) is a must read before you tackle backup and restoration of the ETCD cluster. I would suggest reading it before going through my notes below.
+
 ## Pre-requisites
 Before we begin, lets get a few things setup. First we will need to have ETCD utilities installed on either our jumpbox or the master server. There are several ways to do this:  
 * Through the package manager.
@@ -121,4 +124,107 @@ To start backing up our ETCD database we can use the "etcdctl snapshot save" com
 * Ensure that we are using API version 3.
 * We will need to pass the --cacert, --cert and --key flags to authenticate to the database.
 * For --endpoints, we can use https://127.0.0.1:2379 if we are running the command on the master node. If you are running this on the jumpbox or any other node, you will need to use the https://192.168.56.5:2379 endpoint.
-* If you do not specify the full path of the backup file, the snapshot will be created on your current working directory.
+* If you do not specify the full path of the backup file, the snapshot will be created on your current working directory.  
+
+With those in mind lets back up our ETCD database on the master server. If you want to run the backup on another server, remember to copy the certificates under "/etc/kubernetes/pki/etcd" to the server you want to run the backup on.  
+```
+# Backup the current ETCD database to a file called etcd_backup.db.
+$ sudo ETCDCTL_API=3 etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key --endpoints https://192.168.56.5:2379 snapshot save etcd_backup.db
+Snapshot saved at etcd_backup.db
+
+# Confirm that the snapshot had been created.
+$ ls -l
+total 3164
+-rw-r--r-- 1 root    root    3227680 May  6 03:37 etcd_backup.db <-- take note of the file ownership.
+-rw-rw-r-- 1 vagrant vagrant    4482 Apr 22 15:58 kube-flannel.yml
+
+# Create a backup in a directory called "backup" in the current working directory.
+$ mkdir -p backup
+$ sudo ETCDCTL_API=3 etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key --endpoints https://192.168.56.5:2379 snapshot save backup/etcd_backup.db
+Snapshot saved at backup/etcd_backup.db
+$ ls -l backup/
+total 3272
+-rw-r--r-- 1 root root 3346464 May  6 03:40 etcd_backup.db
+```
+We can verify the state of the backup by running the "etcdctl snapshop status" command. Note that since we are inspecting the snapshot, we do not need to pass the authentication flags (--cacert, --cert and --key) and endpoints flag to the command. Do note that since the owner of the file is "root" we will need to use sudo on our command or else we will get a permission denied error when running the command.  
+```
+# Verify status of the snapshot.
+$ sudo ETCDCTL_API=3 etcdctl snapshot status backup/etcd_backup.db --write-out=table
++----------+----------+------------+------------+
+|   HASH   | REVISION | TOTAL KEYS | TOTAL SIZE |
++----------+----------+------------+------------+
+| 968d895b |    37913 |       1019 |     3.3 MB | <-- take note of the number of keys and revision in this snapshot.
++----------+----------+------------+------------+
+```
+Now lets spin up another pod and do another back up and see if the "REVISION" goes up and the "TOTAL KEYS" change.
+```
+# Spin up a new pod.
+$ kubectl run nginx2 --image=nginx
+pod/nginx2 created
+
+# Confirm that it is up and running.
+$ kubectl get pods
+NAME     READY   STATUS    RESTARTS      AGE
+nginx    1/1     Running   5 (19m ago)   6d19h
+nginx2   1/1     Running   0             34s    <-- here it is.
+
+# Create a new backup.
+$ sudo ETCDCTL_API=3 etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key --endpoints https://192.168.56.5:2379 snapshot save backup/etcd_backup_latest.db
+Snapshot saved at backup/etcd_backup_latest.db
+
+# Confirm that it has been created.
+$ ls -l backup/
+ total 6544
+-rw-r--r-- 1 root root 3346464 May  6 03:43 etcd_backup.db
+-rw-r--r-- 1 root root 3346464 May  6 03:50 etcd_backup_latest.db <-- this is our new backup.
+
+# Get the status and compare the number of keys in this version of the backup.
+$ sudo ETCDCTL_API=3 etcdctl snapshot status backup/etcd_backup_latest.db --write-out=table
++----------+----------+------------+------------+
+|   HASH   | REVISION | TOTAL KEYS | TOTAL SIZE |
++----------+----------+------------+------------+
+| c1bd4b5e |    38796 |       1004 |     3.3 MB | <-- revision numnber and total keys have change.
++----------+----------+------------+------------+
+```
+
+So we now have 2 backup states. In the first snapshot we do not have a pod name nginx2 running. On the 2nd snapshot we have it present. To restore a snapshot, we only need 1 "db" file and use the "etcdctl snapshot restore" command. Now it is important to note that restoring a snapshot creates a new data directory, basically we are creating a new version of the DB. This is the case with most DB snapshot restoration. As such when we are restoring the snapshot, there are 2 ways we can do it. First we can delete the current data directory and restore to that location (by default the etcd data directory is /var/lib/etcd). Second, we can restore to a different directory and modify our etcd manifest to use the new data directory.  
+
+Before we begin there are a few things we will need to know. The number of flags we need to pass to the restore command depends on many factors:
+* You will be performing the restore on the same server that has the ETCD service:
+  * The name of the snapshot.
+  * The data directory if you will be restoring to a different directory than /var/lib/etcd.
+* Restoring to a different server or a different port (not 2379).
+  * The name of the snapshot.
+  * The data directory if you will be restoring to a different directory than /var/lib/etcd.
+  * The endpoints.
+
+With all that information we now perform a restore of the ETCD database. Lets first try restoring to the default /var/lib/etcd directory. First lets take know of the ownership of the /var/lib/etcd directory,
+```
+# First lets confirm what pods are in the default namespace.
+$ kubectl get pods
+NAME     READY   STATUS    RESTARTS       AGE
+nginx    1/1     Running   5 (113m ago)   6d21h
+nginx2   1/1     Running   0              94m
+
+# Let confirm the owner of the /var/lib/etcd directory'
+$ sudo ls -l /var/lib | grep etcd
+drwx------  3 root      root      4096 May  6 03:28 etcd
+
+# First we need to remove th /var/lib/etcd directory as the restore will fail if the directory exists.
+$ sudo rm -rf /var/lib/etcd
+
+# Next lets restore to the version that does not have the nginx2 pod (the snapshot name etcd_backup.db). We use sudo since the target directory is owned by root.
+$ sudo ETCDCTL_API=3 etcdctl snapshot restore backup/etcd_backup.db --data-dir=/var/lib/etcd --skip-hash-check
+2023-05-06 06:09:23.559768 I | mvcc: restore compact to 37297
+2023-05-06 06:09:23.570436 I | etcdserver/membership: added member 8e9e05c52164694d [http://localhost:2380] to cluster cdf818194e3a8c32
+
+# Check our pods to see if nginx2 is present.
+$ kubectl get pods
+NAME    READY   STATUS    RESTARTS       AGE
+nginx   1/1     Running   5 (169m ago)   6d21h
+
+```
+
+Note that since we did not stop the etcd service, there might be situations where restoring will fail as the directory gets recreated. If this happens, just delete the directory again and run the restore. Note that after restoring data, it can take 60 seconds before everthing becomes stable.  
+
+Next let us try to restore to a different location. This is a better solution when restoring rather than deleting the current data directory as you can revert back to the old version if the restored snapshot is now what you wanted.
