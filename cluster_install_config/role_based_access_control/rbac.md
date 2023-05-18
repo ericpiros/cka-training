@@ -59,4 +59,91 @@ spec:
   - client auth
 EOF
 ```
+Next let us apply our CertificateSigningRequest manifests.  
+```
+# Apply the manifests.
+$ kubectl create -f vagrant_csr.yaml
+certificatesigningrequest.certificates.k8s.io/csr-vagrant created
+$ kubectl create -f vagrant_admin_csr.yaml
+certificatesigningrequest.certificates.k8s.io/csr-vagrant-admin created
 
+# Confirm that our requests have been created.
+$ kubectl get csr
+NAME                   AGE   SIGNERNAME                            REQUESTOR          REQUESTEDDURATION   CONDITION
+csr-vagrant            85s   kubernetes.io/kube-apiserver-client   kubernetes-admin   10y                 Pending
+csr-vagrant-admin      51s   kubernetes.io/kube-apiserver-client   kubernetes-admin   10y                 Pending
+```  
+
+As can be seen above, our certificate signing requests have been create but are in a pending state. We will need to approve our requests to completed the process.  
+```
+# Approve the requests.
+$ kubectl certificate approve csr-vagrant
+certificatesigningrequest.certificates.k8s.io/csr-vagrant approved
+$ kubectl certificate approve csr-vagrant-admin
+certificatesigningrequest.certificates.k8s.io/csr-vagrant-admin approved
+
+# Confirm that the requests have been approved.
+$ kubectl get csr
+NAME                   AGE     SIGNERNAME                            REQUESTOR          REQUESTEDDURATION   CONDITION
+csr-vagrant            4m33s   kubernetes.io/kube-apiserver-client   kubernetes-admin   10y                 Approved,Issued
+csr-vagrant-admin      3m59s   kubernetes.io/kube-apiserver-client   kubernetes-admin   10y                 Approved,Issued
+```  
+
+Now that we have our certificated signed by the API server, we can use these to create a kubeconfig file. First let us extract the certificates.  
+```
+# Extract the certificate file.
+$ kubectl get csr csr-vagrant -o jsonpath='{.status.certificate}' | base64 -d > vagrant-user.crt
+$ kubectl get csr csr-vagrant-admin -o jsonpath='{.status.certificate}' | base64 -d > vagrant-admin.crt
+
+# Confirm certificate CN.
+$ openssl x509 -in vagrant-user.crt --noout -subject
+subject=CN = vagrant
+$ openssl x509 -in vagrant-admin.crt --noout -subject
+subject=CN = vagrant_admin
+```  
+
+Now we can create a kubeconfig file with our users. We will be doing the following:  
+* Set the cluster details.
+* Set the user credentials.
+* Create a context for both vagrant and vagrant-admin.  
+```
+# First we need a few details of the cluster. Namely the address and name of our cluster.
+$ kubectl config get-clusters
+NAME
+kubernetes
+$ kubectl cluster-info
+Kubernetes control plane is running at https://192.168.56.5:6443   <-- We will need this.
+CoreDNS is running at https://192.168.56.5:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+# Create the kubeconfig file with the cluster details. We will name our kubeconfig vagrant-kubeconfig.
+$ kubectl --kubeconfig vagrant-kubeconfig config set-cluster kubernetes --insecure-skip-tls-verify=true --server=https://192.168.56.5:6443
+Cluster "kubernetes" set.
+
+# Set vagrant and vagrant-admin in he kubeconfig.
+$ kubectl --kubeconfig vagrant-kubeconfig config set-credentials vagrant --client-certificate=vagrant-user.crt --client-key=vagrant.pem --embed-certs=true
+User "vagrant" set.
+$ kubectl --kubeconfig vagrant-kubeconfig config set-credentials vagrant-admin --client-certificate=vagrant-admin.crt --client-key=vagrant_admin.pem --embed-certs=true
+User "vagrant-admin" set.
+
+# Create our vagrant and vagrant-admin context, which combines a user and cluster information.
+$ kubectl --kubeconfig vagrant-kubeconfig config set-context vagrant --cluster=kubernetes --user=vagrant
+Context "vagrant" created.
+$ kubectl --kubeconfig vagrant-kubeconfig config set-context vagrant-admin --cluster=kubernetes --user=vagrant-admin
+Context "vagrant-admin" created.
+
+# Lets set the vagrant context as the default.
+$ kubectl --kubeconfig vagrant-kubeconfig config use-context vagrant
+Switched to context "vagrant".
+
+# Check that our contexts have been set on the kubeconfig file that we created.
+$ kubectl --kubeconfig ./vagrant-kubeconfig config get-contexts
+CURRENT   NAME            CLUSTER      AUTHINFO        NAMESPACE
+*         vagrant         kubernetes   vagrant         
+          vagrant-admin   kubernetes   vagrant-admin   
+$ kubectl --kubeconfig ./vagrant-kubeconfig config get-users
+NAME
+vagrant
+vagrant-admin
+```
