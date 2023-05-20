@@ -379,3 +379,354 @@ Error from server (Forbidden): pods is forbidden: User "vagrant" cannot list res
 As can be seen, we binded a cluster role to our vagrant user. But since we used a rolebinding, which is bound to a namespace, it effectively limits the scope of our cluster role. This is useful for situations where you need a role that will be used by different users across different namespaces. This way you do not have to create the same role on all namespaces.  
 
 ## Role/ClusterRole Parameters
+Lets look at a role manifest and look at the parameters:  
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: <Name>
+rules:
+- apiGroups:
+  - <API Groups>
+  resourceNames:
+  - <Resource Names>
+  resources:
+  - <Resources> 
+  verbs:
+  - <Verbs>
+  ```  
+
+  These are the parameters we can set:  
+  * API Group - the Kubernetes APIs are grouped to make it possible to easily extend it. There is the "core" group with REST path /api/v1. On the manifest file, this is identified as "" (an empty double quotes). You can find a list of API groups [here](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#-strong-api-groups-strong-).  
+  Another possible way of seeing the API group of a resource you want is inspecting the output of a kubectl command with verbosity set to 9:  
+  ```
+  # Check pod creation POST URL:
+  $ kubectl run test-pod --image=nginx -v 9
+  <--- Ouput truncated --->
+  I0520 14:37:49.006860    9753 round_trippers.go:553] POST https://192.168.56.5:6443/api/v1/namespaces/default/pods?fieldManager=kubectl-run 201 Created in 16 milliseconds
+
+  # Check role creation POST URL:
+  $ kubectl create role test-role --resource=pods --verb=get -v 9
+  <--- Output truncated --->
+  I0520 14:39:15.263613   10139 round_trippers.go:553] POST https://192.168.56.5:6443/apis/rbac.authorization.k8s.io/v1/namespaces/default/roles?fieldManager=kubectl-create&fieldValidation=Strict 201 Created in 14 milliseconds
+  ```  
+  Lets look at the URL that was posted, in particular we are interested in the part after the API server address.  
+  On the pod creation command it is /api/v1, this means that pod is in the "core" API group. Meanwhile for the creation of the role, it is /apis/rbac.authorization.k8s.io/v1. This means that the role API is in the rbac.authorization.k8s.io group. We can verify this by creating a template with "role" as the resource:  
+  ```
+  # Create a role with 'role' as the resource.
+  $ kubectl create role test-role --resource=role --verb=get --dry-run=client -o=yaml
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    creationTimestamp: null
+    name: test-role
+  rules:
+  - apiGroups:
+    - rbac.authorization.k8s.io  <-- note the API group.
+    resources:
+    - roles
+    verbs:
+    - get
+  ```  
+
+  * Resources - this the list of resources that you wish to enable access to. You can get list of resources on the API documentation shown above, or you can run the command:  
+  ```
+  # List API resources available on your cluster.
+  $ kubectl api-resources
+  NAME                              SHORTNAMES   APIVERSION                             NAMESPACED   KIND
+  bindings                                       v1                                     true         Binding
+  componentstatuses                 cs           v1                                     false        ComponentStatus
+  configmaps                        cm           v1                                     true         ConfigMap
+  endpoints                         ep           v1                                     true         Endpoints
+  <--- Output truncated --->
+  ```  
+
+  * Verb - the REST API verbs you wish to grant on the resources you have listed. These are the actions you want your user/service account to be able to do on the resource. Kubernetes supports the standard HTTP verbs and adds it own:  
+    * GET
+    * POST
+    * PUT
+    * PATCH
+    * DELETE
+    * watch
+    * list
+  
+  * Resource Names - allows you to limit the actions to an individual instance of a resource.
+
+### Test the Resource Name parameter  
+Lets try out the resource-name parameter:  
+```
+# On the master server.
+# remove our rolebinding on the vagrant user.
+$ kubectl delete rolebinding vagrant-pod-reader-cluster
+rolebinding.rbac.authorization.k8s.io "vagrant-pod-reader-cluster" deleted
+
+# lets get a list of pods in our default namespace.
+$ kubectl get pods
+NAME            READY   STATUS    RESTARTS       AGE
+nginx           1/1     Running   14 (63m ago)   21d
+nginx2          1/1     Running   7 (63m ago)    14d
+nginx3-master   1/1     Running   6 (64m ago)    12d
+
+# Now lets create a role that limits a user to pods named 'nginx'.
+$ kubectl create role nginx-pod-all --resource=pods --verb=* --resource-name=nginx --namespace=default
+role.rbac.authorization.k8s.io/nginx-pod-all created
+$ kubectl get role nginx-pod-all -o=yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: "2023-05-20T15:33:46Z"
+  name: nginx-pod-all
+  namespace: default
+  resourceVersion: "84710"
+  uid: 2f432ede-ca7c-4361-afe6-d6382c760579
+rules:
+- apiGroups:
+  - ""
+  resourceNames:
+  - ngin*
+  resources:
+  - pods
+  verbs:
+  - '*'
+
+
+# Now lets bind this to our vagrant user.
+$ kubectl create rolebinding vagrant-nginx-pod-all --role=nginx-pod-all --user=vagrant
+rolebinding.rbac.authorization.k8s.io/vagrant-nginx-pod-all created
+$ kubectl get rolebinding vagrant-nginx-pod-all -o=yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  creationTimestamp: "2023-05-20T15:24:07Z"
+  name: vagrant-nginx-pod-all
+  namespace: default
+  resourceVersion: "83832"
+  uid: b38e83d5-b860-473a-876f-c40ae84a5218
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nginx-pod-all
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: vagrant
+
+# Now on Jumpbox.
+# Lets set the context to vagrant.
+$ kubectl config use-context vagrant
+Switched to context "vagrant".
+
+# List all the pods in the default namespace.
+$ kubectl get pods
+Error from server (Forbidden): pods is forbidden: User "vagrant" cannot list resource "pods" in API group "" in the namespace "default"
+
+# We know that there is a pod name nginx, lets be more specific.
+$ kubectl get pods nginx
+NAME    READY   STATUS    RESTARTS       AGE
+nginx   1/1     Running   14 (95m ago)   21d
+
+# We actually gave more access to vagrant to the nginx pod. Lets try deleting it.
+$ kubectl delete pod nginx
+pod "nginx" deleted
+$ kubectl get pods nginx
+Error from server (NotFound): pods "nginx" not found
+```  
+
+One thing to note is that roles are additive and you can bind more than 1 role to a user. This means that the access a user/service accont has is the sum of all the rules set on the roles/clusterrole.  
+```
+# On the master server.
+# Lets recreate the nginx pod.
+$ kubectl run nginx --image=nginx
+pod/nginx created
+
+# Lets bind the pod-reader-cluster clusterrole to the vagrant user again.
+$ kubectl create rolebinding vagrant-pod-reader-cluster --clusterrole=pod-reader-cluster --user=vagrant --namespace=default
+rolebinding.rbac.authorization.k8s.io/vagrant-pod-reader-cluster created
+
+# Now lets go back to the Jumpbox server.
+# Lets now see if vagrant can view all pods inside the default namespace,
+$ kubectl get pods
+NAME              READY   STATUS             RESTARTS       AGE
+nginx             1/1     Running            0              2m17s
+nginx2            1/1     Running            7 (102m ago)   14d
+nginx3-master     1/1     Running            6 (102m ago)   12d
+
+# Now lets see if vagrant can still delete the pod named nginx.
+$ kubectl delete pod nginx
+pod "nginx" deleted
+vagrant@jumpbox:~$ kubectl get pods
+NAME              READY   STATUS             RESTARTS       AGE
+nginx2            1/1     Running            7 (109m ago)   14d
+nginx3-master     1/1     Running            6 (109m ago)   12d
+
+# Now lets see if we can delete any other pods in the default namespace.
+$ kubectl delete pod nginx2
+Error from server (Forbidden): pods "nginx2" is forbidden: User "vagrant" cannot delete resource "pods" in API group "" in the namespace "default"
+```  
+
+### Cluster Role Aggregration  
+Cluster Role has pretty much the same parameters as a Role object. However Kubernetes allows you to aggregrate cluster roles together and then reference this aggregation.  
+
+Let us allow our vagrant user to list nodes and pods on all namespaces.  But instead of creating 2 role bindings, lets create an aggregrate role instead.
+```
+# On the master server.
+# Lets remove all the rolebindings to the vagrant user.
+$ kubectl delete rolebinding vagrant-pod-reader-cluster vagrant-nginx-pod-all
+rolebinding.rbac.authorization.k8s.io "vagrant-pod-reader-cluster" deleted
+rolebinding.rbac.authorization.k8s.io "vagrant-nginx-pod-all" deleted
+
+# Lets add a label to our pod-reader-cluster clusterrole.
+$ kubectl label --overwrite clusterrole pod-reader-cluster reader_role=true
+clusterrole.rbac.authorization.k8s.io/pod-reader-cluster labeled
+$ kubectl get clusterrole pod-reader-cluster -o=yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: "2023-05-20T06:54:23Z"
+  labels:
+    reader_role: "true"
+  name: pod-reader-cluster
+  resourceVersion: "88553"
+  uid: 25666a8a-36f8-4432-85b7-a2cd1b95110e
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+
+# Now lets create a clusterrole to view nodes.
+$ kubectl create clusterrole node-reader-cluster --resource=nodes --verb=list --verb=get --verb=watch
+clusterrole.rbac.authorization.k8s.io/node-reader-cluster created
+
+# Lets label it as well.
+$ kubectl label --overwrite clusterrole node-reader-cluster reader_role=true
+clusterrole.rbac.authorization.k8s.io/node-reader-cluster labeled
+$ kubectl get clusterrole node-reader-cluster -o=yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: "2023-05-20T16:17:51Z"
+  labels:
+    reader_role: "true"
+  name: node-reader-cluster
+  resourceVersion: "88866"
+  uid: 7e62d9ea-3a7c-49fd-ad0a-e4c1ae667958
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+  - get
+  - watch
+
+# Now lets create an aggregrate cluster role:
+$ cat <<'EOF'>> aggregrate_reader_clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aggregrate-reader-cluster
+aggregationRule:
+  clusterRoleSelectors:
+  - matchLabels:
+      reader_role: "true"
+rules: []
+EOF
+
+# Now lets apply this manifest.
+$ kubectl apply -f aggregrate_reader_clusterrole.yaml
+clusterrole.rbac.authorization.k8s.io/aggregrate-reader-cluster created
+$ kubectl get clusterrole aagregrate-reader-cluster -o=yaml
+aggregationRule:
+  clusterRoleSelectors:
+  - matchLabels:
+      reader_role: "true"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"aggregationRule":{"clusterRoleSelectors":[{"matchLabels":{"reader_role":"true"}}]},"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRole","metadata":{"annotations":{},"name":"aggregrate-reader-cluster"},"rules":[]}
+  creationTimestamp: "2023-05-20T16:23:33Z"
+  name: aggregrate-reader-cluster
+  resourceVersion: "89275"
+  uid: 0c5d4e86-c560-478e-bb25-5e03e08dede5
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+  - get
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+
+# Now let us bind the aggregrate role to vagrant.
+$ kubectl create clusterrolebinding vagrant-super-reader --clusterrole=aggregrate-reader-cluster --user=vagrant
+clusterrolebinding.rbac.authorization.k8s.io/vagrant-super-reader created
+$ kubectl get clusterrolebinding vagrant-super-reader -o=yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: "2023-05-20T16:26:19Z"
+  name: vagrant-super-reader
+  resourceVersion: "89527"
+  uid: da3c0911-4a55-4b0f-b2ac-0dea1dbf5080
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aggregrate-reader-cluster
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: vagrant
+
+# Now on the Jumpbox server.
+# Lets make sure that we are using the vagrant context.
+$ kubectl config use-context vagrant
+Switched to context "vagrant".
+
+# Lets view all pods.
+$ kubectl get pods -A
+NAMESPACE      NAME                             READY   STATUS    RESTARTS        AGE
+default        nginx2                           1/1     Running   7 (135m ago)    14d
+default        nginx3-master                    1/1     Running   6 (135m ago)    12d
+kube-flannel   kube-flannel-ds-6rc4b            1/1     Running   18 (135m ago)   28d
+kube-flannel   kube-flannel-ds-df9tp            1/1     Running   21 (134m ago)   28d
+kube-flannel   kube-flannel-ds-gdfb6            1/1     Running   19 (135m ago)   28d
+kube-system    coredns-787d4945fb-h8dl9         1/1     Running   15 (135m ago)   26d
+kube-system    coredns-787d4945fb-v92dc         1/1     Running   15 (135m ago)   26d
+kube-system    etcd-master                      1/1     Running   8 (135m ago)    14d
+kube-system    kube-apiserver-master            1/1     Running   22 (135m ago)   24d
+kube-system    kube-controller-manager-master   1/1     Running   19 (135m ago)   24d
+kube-system    kube-proxy-42n4m                 1/1     Running   14 (135m ago)   21d
+kube-system    kube-proxy-7d8dk                 1/1     Running   14 (134m ago)   21d
+kube-system    kube-proxy-qh64n                 1/1     Running   15 (135m ago)   24d
+kube-system    kube-scheduler-master            1/1     Running   19 (135m ago)   24d
+
+# Lets view our nodes.
+$ kubectl get nodes
+NAME     STATUS   ROLES           AGE   VERSION
+master   Ready    control-plane   28d   v1.26.4
+node1    Ready    <none>          28d   v1.26.4
+node2    Ready    <none>          28d   v1.26.4
+
+# Lets see if we can delete a pod or a node
+$ kubectl delete pod nginx2
+Error from server (Forbidden): pods "nginx2" is forbidden: User "vagrant" cannot delete resource "pods" in API group "" in the namespace "default"
+$ kubectl delete node node2
+Error from server (Forbidden): nodes "node2" is forbidden: User "vagrant" cannot delete resource "nodes" in API group "" at the cluster scope
+```
