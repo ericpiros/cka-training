@@ -30,4 +30,8 @@
 * Finished initial version kubeadm upgrade.
 
 # 05-05-2023
-* Finished initial version of ETCD backup and restore.
+* Finished initial version of ETCD backup and restore.  
+
+# 05-22-2023
+* Finished initial version RBAC.
+* Added libvirt version of vagrant setup.
