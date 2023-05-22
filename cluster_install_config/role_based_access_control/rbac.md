@@ -729,4 +729,186 @@ $ kubectl delete pod nginx2
 Error from server (Forbidden): pods "nginx2" is forbidden: User "vagrant" cannot delete resource "pods" in API group "" in the namespace "default"
 $ kubectl delete node node2
 Error from server (Forbidden): nodes "node2" is forbidden: User "vagrant" cannot delete resource "nodes" in API group "" at the cluster scope
+```  
+
+## Service Accounts  
+Service accounts allow pods to gain access to API. They are managed by Kubernetes unlike users. This means that we can create a Service Account through kubectl or the API directly. This can be useful in situations where you application running inside a pod requires access to the Kubernetes API. These may include monitoring or CI/CD applications (Prometheus and ArgoCD come to mind.).  
+
+Every pod is assigned a service account. If you do not specify a service account for a pod, it uses the "default" service account on the namespace that it is one. Service accounts are namespaced resources. Lets look at the service accounts in the default and kube-system namespaces.  
+```
+# Service Account in the default namespace.
+$ kubectl get serviceaccount -n default
+NAME      SECRETS   AGE
+default   0         35h
+$ kubectl get serviceaccount default -o=yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  creationTimestamp: "2023-05-20T18:11:47Z"
+  name: default
+  namespace: default
+  resourceVersion: "348"
+  uid: 2831e57c-d06d-44b1-81fc-d357b1b006ee
+
+# Get Service Accounts in kube-system
+$ kubectl get serviceaccount -n kube-system
+NAME                                 SECRETS   AGE
+attachdetach-controller              0         35h
+bootstrap-signer                     0         35h
+certificate-controller               0         35h
+clusterrole-aggregation-controller   0         35h
+coredns                              0         35h
+cronjob-controller                   0         35h
+daemon-set-controller                0         35h
+default                              0         35h  <--- default is also here
+deployment-controller                0         35h
+<--- Output truncated --->
+```  
+
+As can be seen, the default service account is on all namespaces. If you create a new namespace, a new default service account will be created.  
+```
+# Create a new namespace and check what service accounts are created.
+$ kubectl create namespace sa-demo
+namespace/sa-demo created
+$ kubectl get serviceaccounts -n sa-demo
+NAME      SECRETS   AGE
+default   0         9s
+```  
+
+By default, no roles or cluster roles are binded to the default account. This means that pods using this service account do not have any access to the Kubernetes API. Let try accessing the API inside a pod to test this out. We can follow the instructions [here](https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/). We will need a few things before we start.  
+
+We will need to know or have:
+* The CA cert file.
+* A valid bearer token.
+* A valid API command.  
+
+The CA cert file and bearer token should already be in a pod. We can confirm this by inspecting a pod.  
+```
+# Check if the CA cert and bearer token is available in a pod. We will inspect the nginx2 pod.
+$ kubectl get pod nginx2 -o=yaml | | grep volumes -A 18
+  volumes:
+  - name: kube-api-access-krhmw
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+
+$ kubectl get pod nginx2 =o=yaml | grep volumeMounts -A 3
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-krhmw
+      readOnly: true
+```  
+
+As can be seen in the pod definition, the CA certificate and bearer tokens are mounted under /var/run/secrets/kubernetes.io/serviceaccount.  
+
+Now lets get a valid REST API command. Lets see how to do a get pods command through the API.  
+```
+$ kubectl get pods -v 9
+I0522 06:21:42.025813   13861 loader.go:373] Config loaded from file:  /home/vagrant/.kube/config                                                                                              
+I0522 06:21:42.037351   13861 round_trippers.go:466] curl -v -XGET  -H "User-Agent: kubectl/v1.26.0 (linux/amd64) kubernetes/b46a3f8" -H "Accept: application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io,application/json" 'https://192.168.73.5:6443/api/v1/namespaces/default/pods?limit=500'
+I0522 06:21:42.037959   13861 round_trippers.go:510] HTTP Trace: Dial to tcp:192.168.73.5:6443 succeed
+I0522 06:21:42.051810   13861 round_trippers.go:553] GET https://192.168.73.5:6443/api/v1/namespaces/default/pods?limit=500 200 OK in 14 milliseconds
+<--- Output truncated --->
+```  
+
+We can see that kubectl issued the following curl command to get the pods in the default namespace: https://192.168.73.5:6443/api/v1/namespaces/default/pods?limit=500.  Now we have all the information we need to access the API inside the pod.  
+```
+# Connect to the nginx2 pod.
+$ kubectl exec nginx2 -i --tty -- /bin/sh
+# APISERVER=https://kubernetes.default.svc
+# SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
+# TOKEN=$(cat ${SERVICEACCOUNT}/token)
+# CACERT=${SERVICEACCOUNT}/ca.crt
+# curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X GET ${APISERVER}/api/v1/namespaces/default/pods
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "pods is forbidden: User \"system:serviceaccount:default:default\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+  "reason": "Forbidden",
+  "details": {
+    "kind": "pods"
+  },
+  "code": 403
+# exit
+```  
+
+As can be seen in the output, the default service account does not have permission to list pods in the default namespace.  
+
+Now we can go ahead and bind the pod-reader-cluster cluster role or pod-reader-role to the default service account and call it a day, but that is not the best practice. Not all pods in a namespace should have access to the API. Binding a role to the default service account will give any pod that is not set up with a different service account access to the Kubernetes API. So lets create a service account and bind a a role or cluster role to it.  
+```
+# Create a Service Account.
+$ kubectl create serviceaccount default-pod-reader -n default
+serviceaccount/default-pod-reader created
+
+# Let create a rolebinding of the pod-reader-cluster to the default-pod-reader service account.
+$ kubectl create rolebinding nginx-pod-reader --serviceaccount=default:default-pod-reader --clusterrole=pod-reader-cluster --namespace=default
+rolebinding.rbac.authorization.k8s.io/nginx-pod-reader created
+
+# Now lets create a pod that uses this service account.
+$ cat <<'EOF'>> sa-demo-nginx.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: sa-demo-nginx
+  name: sa-demo-nginx
+spec:
+  serviceAccountName: default-pod-reader
+  containers:
+  - image: nginx
+    name: sa-demo-nginx
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+EOF
+
+$ kubectl apply -f sa-demo-nginx.yaml
+pod/sa-demo-nginx created
+
+# Lets confirm that our pod is using the service account we created.
+$ kubectl get pod sa-demo-nginx -o=yamo | grep serviceAccountName
+      {"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"labels":{"run":"sa-demo-nginx"},"name":"sa-demo-nginx","namespace":"default"},"spec":{"containers":[{"image":"nginx","name":"sa-demo-nginx","resources":{}}],"dnsPolicy":"ClusterFirst","restartPolicy":"Always","serviceAccountName":"default-pod-reader"}}
+  serviceAccountName: default-pod-reader
+
+# Now lest attach to the pod and issue the same commands we did earlier.
+$ kubectl exec sa-demo-nginx -i --tty -- /bin/sh
+# APISERVER=https://kubernetes.default.svc
+# SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
+# TOKEN=$(cat ${SERVICEACCOUNT}/token)
+# CACERT=${SERVICEACCOUNT}/ca.crt
+# curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X GET ${APISERVER}/api/v1/namespaces/default/pods
+{
+  "kind":"PodList",
+  "apiVersion": "v1",                                  
+  "metadata": {
+    "resourceVersion": "10783"                           
+  },                         
+  "items":[
+    {                                                    
+      "metadata": {
+        "name": "nginx",
+        "namespace": "default",
+        "uid": "ce7bff04-89e3-435b-b076-b3ab33fd0c9a",
+        "resourceVersion": "3043",
+        "creationTimestamp": "2023-05-20T18:19:16Z",
+        "labels": {
+          "run": "nginx"
+        },
+  <--- Output truncated --->
 ```
