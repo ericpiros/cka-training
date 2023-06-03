@@ -32,7 +32,7 @@ stream {
     upstream kubernetes {
         server 192.168.73.5:6443;
         server 192.168.73.6:6443;
-        server 192.168.73.7:6443
+        server 192.168.73.7:6443;
     }
 
     server {
@@ -76,6 +76,13 @@ EOF
   kube.vm.provision "shell", inline: <<-SHELL
     sudo apt update
     sudo apt install -y avahi-daemon libnss-mdns apt-transport-https ca-certificates curl
+    sudo echo "192.168.73.3 jumpbox jumpbox" >> /etc/hosts
+    sudo echo "192.168.73.4 proxy   proxy" >> /etc/hosts
+    sudo echo "192.168.73.5 master1 master1" >> /etc/hosts
+    sudo echo "192.168.73.6 master2 master2" >> /etc/hosts
+    sudo echo "192.168.73.7 master3 master3" >> /etc/hosts
+    sudo echo "192.168.73.10 node1 node1" >> /etc/hosts
+    sudo echo "192.168.73.11 node2 node2" >> /etc/hosts
   SHELL
   
 end
