@@ -7,7 +7,7 @@ Vagrant.configure("2") do |kube|
   kube.vm.define "jumpbox" do |jumpbox|
     jumpbox.vm.box = BOX_IMAGE
 	  jumpbox.vm.hostname = "jumpbox"
-	  jumpbox.vm.network :private_network, ip: "192.168.73.3", hostname: true
+	  #jumpbox.vm.network :private_network, ip: "192.168.73.3", hostname: true
     jumpbox.vm.provider "libvirt" do |jumpboxconfig|
 	    jumpboxconfig.memory = 2048
 	    jumpboxconfig.cpus = 2
@@ -17,7 +17,7 @@ Vagrant.configure("2") do |kube|
   kube.vm.define "proxy" do |kubeproxy|
     kubeproxy.vm.box = BOX_IMAGE
     kubeproxy.vm.hostname = "proxy"
-    kubeproxy.vm.network :private_network, ip: "192.168.73.4", hostname: true
+    #kubeproxy.vm.network :private_network, ip: "192.168.73.4", hostname: true
     kubeproxy.vm.provider "libvirt" do |kubeproxyconfig|
       kubeproxyconfig.memory = 2048
       kubeproxyconfig.cpus = 1
@@ -50,7 +50,7 @@ EOF
     kube.vm.define "master#{cp_count}" do |kubemaster|
       kubemaster.vm.box = BOX_IMAGE
       kubemaster.vm.hostname = "master#{cp_count}"
-      kubemaster.vm.network :private_network, ip: "192.168.73.#{cp_count + 4}", hostname: true
+      #kubemaster.vm.network :private_network, ip: "192.168.73.#{cp_count + 4}", hostname: true
       kubemaster.vm.provider "libvirt" do |masterconfig|
         masterconfig.memory = 4096
         masterconfig.cpus = 4
@@ -63,7 +63,7 @@ EOF
     kube.vm.define "node#{node_count}" do |kubeworker|
       kubeworker.vm.box = BOX_IMAGE
         kubeworker.vm.hostname = "node#{node_count}"
-        kubeworker.vm.network :private_network, ip: "192.168.73.#{node_count + 9}", hostname: true
+        #kubeworker.vm.network :private_network, ip: "192.168.73.#{node_count + 9}", hostname: true
         kubeworker.vm.provider "libvirt" do |workerconfig|
           workerconfig.memory = 2048
           workerconfig.cpus = 2
@@ -76,13 +76,6 @@ EOF
   kube.vm.provision "shell", inline: <<-SHELL
     sudo apt update
     sudo apt install -y avahi-daemon libnss-mdns apt-transport-https ca-certificates curl
-    sudo echo "192.168.73.3 jumpbox jumpbox" >> /etc/hosts
-    sudo echo "192.168.73.4 proxy   proxy" >> /etc/hosts
-    sudo echo "192.168.73.5 master1 master1" >> /etc/hosts
-    sudo echo "192.168.73.6 master2 master2" >> /etc/hosts
-    sudo echo "192.168.73.7 master3 master3" >> /etc/hosts
-    sudo echo "192.168.73.10 node1 node1" >> /etc/hosts
-    sudo echo "192.168.73.11 node2 node2" >> /etc/hosts
   SHELL
   
 end
