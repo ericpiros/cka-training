@@ -1,0 +1,88 @@
+BOX_IMAGE = "bento/ubuntu-20.04"
+NODE_COUNT = 2
+CP_COUNT = 3
+
+Vagrant.configure("2") do |kube|
+
+  kube.vm.define "jumpbox" do |jumpbox|
+    jumpbox.vm.box = BOX_IMAGE
+	  jumpbox.vm.hostname = "jumpbox"
+	  jumpbox.vm.network "private_network", ip: "192.168.56.3", hostname: true
+    jumpbox.vm.provider "virtualbox" do |jumpboxconfig|
+	    jumpboxconfig.memory = 2048
+	    jumpboxconfig.cpus = 2
+	  end
+  end
+  
+  kube.vm.define "nginx" do |proxy|
+    proxy.vm.box = BOX_IMAGE
+	  proxy.vm.hostname = "nginx"
+	  proxy.vm.network "private_network", ip: "192.168.56.4", hostname: true
+    proxy.vm.provider "virtualbox" do |proxyconfig|
+	    proxyconfig.memory = 2048
+	    proxyconfig.cpus = 2
+    end
+    proxy.vm.provision "shell", inline: <<-NGINX
+      sudo apt install -y nginx
+      sudo systemctl enable nginx
+      sudo mkdir -p /etc/nginx/tcpconf.d
+      sudo echo "include /etc/nginx/tcpconf.d/*;" >> /etc/nginx/nginx.conf
+      cat << EOF | sudo tee /etc/nginx/tcpconf.d/kubernetes.conf
+stream {
+    upstream kubernetes {
+        server 192.168.56.5:6443;
+        server 192.168.56.6:6443;
+        server 192.168.65.7:6443;
+    }
+
+    server {
+        listen 6443;
+        listen 443;
+        proxy_pass kubernetes;
+    }
+}
+EOF
+    sudo nginx -s reload
+    NGINX
+  end
+
+  (1..CP_COUNT).each do |cp_count|
+    kube.vm.define "master#{cp_count}" do |kubemaster|
+      kubemaster.vm.box = BOX_IMAGE
+      kubemaster.vm.hostname = "master#{cp_count}"
+      kubemaster.vm.network "private_network", ip: "192.168.56.#{cp_count + 4}", hostname: true
+      kubemaster.vm.provider "virtualbox" do |masterconfig|
+        masterconfig.memory = 4096
+        masterconfig.cpus = 4
+        masterconfig.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+      end
+      kubemaster.vm.provision "shell", path: "./k8s_req.sh"
+    end
+  end
+
+  (1..NODE_COUNT).each do |node_count|
+    kube.vm.define "node#{node_count}" do |kubeworker|
+      kubeworker.vm.box = BOX_IMAGE
+      kubeworker.vm.hostname = "node#{node_count}"
+      kubeworker.vm.network "private_network", ip: "192.168.56.#{node_count + 9}", hostname: true
+      kubeworker.vm.provider "virtualbox" do |workerconfig|
+        workerconfig.memory = 2048
+        workerconfig.cpus = 2
+        workerconfig.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+      end
+      kubeworker.vm.provision "shell", path: "./k8s_req.sh"
+    end
+  end
+
+  kube.vm.provision "shell", inline: <<-SHELL
+    sudo apt update
+    sudo apt install -y avahi-daemon libnss-mdns apt-transport-https ca-certificates curl
+    sudo echo "192.168.56.3 jumpbox jumpbox" >> /etc/hosts
+    sudo echo "192.168.56.4 proxy   proxy" >> /etc/hosts
+    sudo echo "192.168.56.5 master1 master1" >> /etc/hosts
+    sudo echo "192.168.56.6 master2 master2" >> /etc/hosts
+    sudo echo "192.168.56.7 master3 master3" >> /etc/hosts
+    sudo echo "192.168.56.10 node1 node1" >> /etc/hosts
+    sudo echo "192.168.56.11 node2 node2" >> /etc/hosts
+  SHELL
+end

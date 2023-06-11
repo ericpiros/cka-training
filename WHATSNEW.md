@@ -35,3 +35,8 @@
 # 05-22-2023
 * Finished initial version RBAC.
 * Added libvirt version of vagrant setup.
+
+# 06-10-2023
+* Modified libvert version of HA cluster Vagrant file to not include secondary interfaces.
+* Added disclaimer to HA section.
+* Initial version of HA section.

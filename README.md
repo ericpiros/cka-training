@@ -11,7 +11,7 @@ As of 2023, the exam covers the [Kubernetes 1.26](https://kubernetes.io/blog/202
 * 25% - Cluster Architecture, Installation and Configuration  
   * [Manage role based access control (RBAC)](./cluster_install_config/role_based_access_control/rbac.md)
   * [Use kubeadm to install a basic cluster](./cluster_install_config/installation/install_k8s_kubeadm.md)
-  * Manage a highly-available Kubernetest cluster
+  * [Manage a highly-available Kubernetest cluster](./cluster_install_config/manage_ha_cluster/ha_cluster.md)
   * Provision underlying infrastructure to deploy a Kuernetes cluster
   * [Perform a version upgrade on a Kubernetes cluster using Kubeadm](./cluster_install_config/upgrade/upgrade_k8s_kubeadm.md)
   * [Implement etcd backup and restore](./cluster_install_config/etcd_backup_restore/backup_etcd.md)
