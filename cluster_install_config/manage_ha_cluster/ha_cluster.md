@@ -5,6 +5,11 @@ There are 2 common ways for you to enable high availability for your Kubernetes 
 
 On both topologies, you will need to have a load balancer in front of your kube-apiserver. Both topologies are explained well in [this](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/) page of the Kubernetes documentation.  
 
+# This section is not final
+There are issues with kubeadm when your servers more than 1 network interface cards. The issue stems from the problem that kubelet picks up the primary interface when it runs. This causes some of the control plane components to advertise and listen on the primary port as well. With the first control plane node, this can be mitigated with the '--apiserver-advertise-address' parameter. However this parameter is only available with the 'init' commmand and not on the 'join' command. This causes issues when a new control plane node tries to join the cluster and could not reach the API server because it is listening on the wrong network interface.  
+
+Currently the only way I have gotten the settings below to run is to proceed with the steps outlined and when the 'kubeadm join' command fails (it always fails with ETCD), I modify the 'etcd.yaml' file under '/etc/kubernetes/manifests' to use the correct IP addresses. Even then the process listed below does not work 100%. I will continue working on this section of the page, but for now I am leaving it as is.
+
 # Setting up a Highly Available Stacked Cluster using Kubeadm 
 I have created a HA version of the Vagrant single Control Plane vagrantfile [here](../vagrant/ha_cluster_virtualbox/Vagrantfile). This will bring up the following: 
 * Jumpbox - a server we can use to connect to the other servers. Also once a Kubernetes user is created, this is where I mostly execute my commands on. 
