@@ -114,3 +114,39 @@ status:
 ```
 
 As can be seen, 'replicas' are defined under 'spec'. While 'image' is defined under 'spec.template.spec.containers'. Generally, only changes under 'container' will trigger a new rollout. 
+
+# Deployment Rollback
+By default deployments keep 10 versions of a deployment. This allows you to rollback to any of the previous 10 versions. This list of version can be modified by including the '.spec.revisionHistoryLimit' field in your manifiest.  
+
+To view details about a "rollout" we can use the "kubectl rollout" command.  
+```
+# View rollout status.
+$ kubectl rollout status deployment/nginx-deployment
+deployment "nginx-deployment" successfully rolled out
+
+# View all revisions available of a deployment rollout.
+$ kubectl rollout history deployment/nginx-deployment
+deployment.apps/nginx-deployment
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+
+# View version detail
+$ kubectl rollout history deployment/nginx-deployment --revision=1
+deployment.apps/nginx-deployment with revision #1
+Pod Template:
+  Labels:       app=nginx-deployment
+        pod-template-hash=5c4d87dfc7
+  Containers:
+   nginx:
+    Image:      nginx:1.14.2
+    Port:       <none>
+    Host Port:  <none>
+    Environment:        <none>
+    Mounts:     <none>
+  Volumes:      <none>
+
+# Rollback to a previous version.
+$ kubectl rollout undo deployment/nginx-deployment
+deployment.apps/nginx-deployment rolled back
+```
