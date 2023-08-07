@@ -7,16 +7,20 @@ Vagrant.configure("2") do |kube|
 	  jumpbox.vm.hostname = "jumpbox"
 	  jumpbox.vm.network :private_network, ip: "192.168.73.4", hostname: true
     jumpbox.vm.provider "libvirt" do |jumpboxconfig|
+      # The qemu_use_session is only needed if you are using Fedora
+      jumpboxconfig.qemu_use_session = false
 	    jumpboxconfig.memory = 2048
 	    jumpboxconfig.cpus = 2
 	  end
   end
-  
+
   kube.vm.define "master" do |kubemaster|
     kubemaster.vm.box = BOX_IMAGE
     kubemaster.vm.hostname = "master"
     kubemaster.vm.network :private_network, ip: "192.168.73.5", hostname: true
     kubemaster.vm.provider "libvirt" do |masterconfig|
+      # The qemu_use_session is only needed if you are using Fedora
+      masterconfig.qemu_use_session = false
       masterconfig.memory = 4096
       masterconfig.cpus = 4
       #masterconfig.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
@@ -29,6 +33,8 @@ Vagrant.configure("2") do |kube|
       kubeworker.vm.hostname = "node#{count}"
       kubeworker.vm.network :private_network, ip: "192.168.73.#{count + 10}", hostname: true
       kubeworker.vm.provider "libvirt" do |workerconfig|
+        # The qemu_use_session is only needed if you are using Fedora
+        workerconfig.qemu_use_session = false
         workerconfig.memory = 2048
         workerconfig.cpus = 2
       #  workerconfig.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
