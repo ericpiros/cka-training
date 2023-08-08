@@ -40,3 +40,6 @@
 * Modified libvert version of HA cluster Vagrant file to not include secondary interfaces.
 * Added disclaimer to HA section.
 * Initial version of HA section.
+
+# 08-09-2023
+* Modified libvirt Vagrant file to support Fedora's implementation of qemu.
