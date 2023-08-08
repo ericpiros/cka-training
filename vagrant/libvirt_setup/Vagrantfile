@@ -6,6 +6,7 @@ Vagrant.configure("2") do |kube|
     jumpbox.vm.box = BOX_IMAGE
 	  jumpbox.vm.hostname = "jumpbox"
 	  jumpbox.vm.network :private_network, ip: "192.168.73.4", hostname: true
+    jumpbox.vm.synced_folder "./", "/vagrant", type: "rsync"
     jumpbox.vm.provider "libvirt" do |jumpboxconfig|
       # The qemu_use_session is only needed if you are using Fedora
       jumpboxconfig.qemu_use_session = false
@@ -18,6 +19,7 @@ Vagrant.configure("2") do |kube|
     kubemaster.vm.box = BOX_IMAGE
     kubemaster.vm.hostname = "master"
     kubemaster.vm.network :private_network, ip: "192.168.73.5", hostname: true
+    kubemaster.vm.synced_folder "./", "/vagrant", type: "rsync"
     kubemaster.vm.provider "libvirt" do |masterconfig|
       # The qemu_use_session is only needed if you are using Fedora
       masterconfig.qemu_use_session = false
@@ -32,6 +34,7 @@ Vagrant.configure("2") do |kube|
       kubeworker.vm.box = BOX_IMAGE
       kubeworker.vm.hostname = "node#{count}"
       kubeworker.vm.network :private_network, ip: "192.168.73.#{count + 10}", hostname: true
+      kubeworker.vm.synced_folder "./", "/vagrant", type: "rsync"
       kubeworker.vm.provider "libvirt" do |workerconfig|
         # The qemu_use_session is only needed if you are using Fedora
         workerconfig.qemu_use_session = false
