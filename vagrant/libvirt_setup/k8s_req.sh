@@ -34,11 +34,15 @@ sudo systemctl restart containerd
 echo "Adding K8S repo"
 sudo mkdir -p /etc/apt/keyrings
 
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.26/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+sudo curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
 
-echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.26/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+# Note that sometime around June 2023 the gpg key above stopped working. As a result you would not be able to
+# run an apt update since the certificate is invalid. To get around this I have set the repo to trusted.
+# Note that there are now new repo links and gpg keys in the officual kubeadm documentation located
+# here: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+echo "deb [trusted=yes] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 
 echo "Installing kubeadm, kubectl and kubelet"
-sudo apt update && sudo apt install -y kubelet kubeadm kubectl
+sudo apt update && sudo apt install -y kubelet=1.26.0-00 kubeadm=1.26.0-00 kubectl=1.26.0-00
 
 sudo apt-mark hold kubelet kubeadm kubectl
