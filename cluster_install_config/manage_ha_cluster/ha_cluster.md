@@ -5,10 +5,6 @@ There are 2 common ways for you to enable high availability for your Kubernetes 
 
 On both topologies, you will need to have a load balancer in front of your kube-apiserver. Both topologies are explained well in [this](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/) page of the Kubernetes documentation.  
 
-# This section is not final
-There are issues with kubeadm when your servers more than 1 network interface cards. The issue stems from the problem that kubelet picks up the primary interface when it runs. This causes some of the control plane components to advertise and listen on the primary port as well. With the first control plane node, this can be mitigated with the '--apiserver-advertise-address' parameter. However this parameter is only available with the 'init' commmand and not on the 'join' command. This causes issues when a new control plane node tries to join the cluster and could not reach the API server because it is listening on the wrong network interface.  
-
-Currently the only way I have gotten the settings below to run is to proceed with the steps outlined and when the 'kubeadm join' command fails (it always fails with ETCD), I modify the 'etcd.yaml' file under '/etc/kubernetes/manifests' to use the correct IP addresses. Even then the process listed below does not work 100%. I will continue working on this section of the page, but for now I am leaving it as is.
 
 # Setting up a Highly Available Stacked Cluster using Kubeadm 
 I have created a HA version of the Vagrant single Control Plane vagrantfile [here](../vagrant/ha_cluster_virtualbox/Vagrantfile). This will bring up the following: 
@@ -71,6 +67,9 @@ Now as can be seen in the output above, the join command to add another contropl
 * **--certificate-key** - this is the decryption key for the certificates uploaded to secrets by the init command.  
 
 Lets add master2 to the cluster as our second Control Plane node. I have already gone ahead and joined node1 and node2 in this example.  
+
+## Note:
+Since our setup uses 2 network interface cards, we will need to add the '--apiserver-advertise-address' on our join commands for new control plane nodes so that kubeadm does not use the default network card.
 ```
 # On master1
 # Lets list our current nodes.
@@ -84,7 +83,8 @@ node2     NotReady   <none>          2m46s   v1.26.0
 # Join the server to the cluster.
 $ sudo kubeadm join 192.168.56.4:6443 --token <cert token> \
 	--discovery-token-ca-cert-hash <cert hash> \
-	--control-plane --certificate-key <cert decryption key>
+	--control-plane --certificate-key <cert decryption key> \
+	--apiserver-advertise-address 192.168.56.6
 
 <-- Output truncated -->
 his node has joined the cluster and a new control plane instance was created:
@@ -135,8 +135,10 @@ Now we can assemble the commands needed to join master3.
 ```
 # Join master3 as a control plane node.
 # On master3.
-$ sudo kubeadm join 192.168.56.4:6443 --token <new token> --discovery-token-ca-cert-hash <cert hash> \
-    --control-plane --certificate-key <cert decryption key>
+$ sudo kubeadm join 192.168.56.4:6443 --token <new token> \
+	--discovery-token-ca-cert-hash <cert hash> \
+    --control-plane --certificate-key <cert decryption key> \
+	--apiserver-advertise-address 192.168.56.7 
 
 <-- Output truncated -->
 This node has joined the cluster and a new control plane instance was created:
