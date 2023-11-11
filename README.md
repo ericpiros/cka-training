@@ -16,7 +16,7 @@ As of 2023, the exam covers the [Kubernetes 1.26](https://kubernetes.io/blog/202
   * [Perform a version upgrade on a Kubernetes cluster using Kubeadm](./cluster_install_config/upgrade/upgrade_k8s_kubeadm.md)
   * [Implement etcd backup and restore](./cluster_install_config/etcd_backup_restore/backup_etcd.md)
 * 15% - Workloads & Scheduling
-  * Understand deployments and how to perform rolling update and rollbacks
+  * [Understand deployments and how to perform rolling update and rollbacks](./workload_scheduling/deployments/deployments.md)
   * Use ConfigMaps and Secrets to configure applications
   * Know how to scale applications
   * Understand the primitives used to create robust, self-healing, application deployments
