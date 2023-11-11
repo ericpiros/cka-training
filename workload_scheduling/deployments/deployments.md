@@ -145,7 +145,11 @@ Pod Template:
     Environment:        <none>
     Mounts:     <none>
   Volumes:      <none>
+```  
 
+We can also rollback to a previous version using the 'rollout undo' command.
+
+```
 # Rollback to a previous version.
 $ kubectl rollout undo deployment/nginx-deployment
 deployment.apps/nginx-deployment rolled back
