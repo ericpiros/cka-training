@@ -181,3 +181,16 @@ node2     Ready    <none>          34h   v1.26.0
 We now have 3 control plane nodes in our cluster. If the status of your nodes **NotReady** then this means that you have not installed a CNI plugin yet. Choose 1 and install it on your cluster.  
 
 We can also confirm that we have a HA cluster by checking the members of our ETCD. We can do this by running 'etcdctl member list'.
+```
+# View ETCD members
+# Run this on master1
+$ sudo ETCDCTL_API=3 etcdctl --endpoints 127.0.0.1:2379 \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  member list
+13240cf8591c5ceb, started, master1, https://192.168.73.5:2380, https://192.168.73.5:2379
+780e972a423692e1, started, master3, https://192.168.73.7:2380, https://192.168.73.7:2379
+784b48a9d0a745bb, started, master2, https://192.168.73.6:2380, https://192.168.73.6:2379
+```  
+As seen above we confirm that our ETCD cluster has all our master nodes as its members.
