@@ -41,7 +41,10 @@
 * Added disclaimer to HA section.
 * Initial version of HA section.
 
-# 10-10-2023
+# 11-10-2023
 * Passed the CKA exam.
 * Updated the libvirt vgrant files to make them more uniform.
-* Updated k8s_req.sh to account for the expired gpg key on the K8S 1.26 install. New gpg keys and repos are now available on the official k8s documentation site.
+* Updated k8s_req.sh to account for the expired gpg key on the K8S 1.26 install. New gpg keys and repos are now available on the official k8s documentation site.  
+
+# 11-12-2023
+* Updated HA cluster notes on how to check for ETCD members.
