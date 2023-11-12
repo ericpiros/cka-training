@@ -15,6 +15,17 @@ I have created a HA version of the Vagrant single Control Plane vagrantfile [her
 
 This version of the vagrant file will also install the pre-required software and settings. It will also add entries to the '/etc/hosts' file on each server to help with name resolution.  
 
+If you are using libvirt, it will be best tobring up the VMs 1 at a time so as not to saturate your network interface (especially if you are running this on a laptop like me and do not have access to 10GB ethernet). This can be done by doing 'vagrant up < VM name >'.  
+```
+$ vagrant up master1
+
+$ vagrant up master2
+
+$ vagrant up proxy
+
+$ vagrant up node1
+```  
+
 Once all the servers are up, we will need to connect to **master1** first and setup Kubernetes using kubeadm. The process will be pretty much the same with only 1 difference. We will set the '--copntrol-plane-endpoint' parameter to either the IP address or name of the Nginx server.  
 ```
 # On master1
@@ -27,7 +38,7 @@ The '--upload-certs' parameter is also important, as we will need make the certi
 $ sudo kubeadm init phase upload-certs --upload-certs
 ```  
 
-Alternatively I have also created a config file for this located in the '/vagrant' synched folder:
+Alternatively I have also created a config file for this located in the ['/vagrant'](../../vagrant/ha_cluster_virtualbox/my-k8s-cluster.yaml) synched folder:
 ```
 # Use a config file.
 $ sudo kubeadm init --config /vagrant/my-k8s-cluster.yaml --upload-certs
@@ -65,6 +76,7 @@ kubeadm join 192.168.56.4:6443 --token <token> \
 Now as can be seen in the output above, the join command to add another controplan node is given in the output. The main difference between the workder node join command is that the following 2 parameters are added:  
 * **--control-plane** - tells kubeadm that the node we are joining will be a control plane node.
 * **--certificate-key** - this is the decryption key for the certificates uploaded to secrets by the init command.  
+* **--apiserver-advertise-address** - this is only required on our setup where we have 2 network cards on our servers. Set this to the IP address of the node that you are going to add to the control plane.
 
 Lets add master2 to the cluster as our second Control Plane node. I have already gone ahead and joined node1 and node2 in this example.  
 
@@ -87,7 +99,7 @@ $ sudo kubeadm join 192.168.56.4:6443 --token <cert token> \
 	--apiserver-advertise-address 192.168.56.6
 
 <-- Output truncated -->
-his node has joined the cluster and a new control plane instance was created:
+This node has joined the cluster and a new control plane instance was created:
 
 * Certificate signing request was sent to apiserver and approval was received.
 * The Kubelet was informed of the new secure connection details.
@@ -165,3 +177,20 @@ master3   Ready    control-plane   34h   v1.26.0
 node1     Ready    <none>          34h   v1.26.0
 node2     Ready    <none>          34h   v1.26.0
 ```  
+
+We now have 3 control plane nodes in our cluster. If the status of your nodes **NotReady** then this means that you have not installed a CNI plugin yet. Choose 1 and install it on your cluster.  
+
+We can also confirm that we have a HA cluster by checking the members of our ETCD. We can do this by running 'etcdctl member list'.
+```
+# View ETCD members
+# Run this on master1
+$ sudo ETCDCTL_API=3 etcdctl --endpoints 127.0.0.1:2379 \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  member list
+13240cf8591c5ceb, started, master1, https://192.168.73.5:2380, https://192.168.73.5:2379
+780e972a423692e1, started, master3, https://192.168.73.7:2380, https://192.168.73.7:2379
+784b48a9d0a745bb, started, master2, https://192.168.73.6:2380, https://192.168.73.6:2379
+```  
+As seen above we confirm that our ETCD cluster has all our master nodes as its members.
